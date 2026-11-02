@@ -166,6 +166,7 @@ dialog::backdrop{background:rgba(10,15,30,.65)}
     <label>Your name<input name="name" autocomplete="name" required></label>
     <label>Your email<input name="email" type="email" autocomplete="email" required></label>
     <label>What’s on your mind?<textarea name="message" placeholder="Tell me about the role, the project, or just say hi." required></textarea></label>
+    <input type="checkbox" name="botcheck" tabindex="-1" autocomplete="off" style="display:none">
     <button type="submit">Send</button>
     <p class="status" id="status" role="status"></p>
   </form>
@@ -306,12 +307,34 @@ const io = new IntersectionObserver(es => es.forEach(e => {
 }), { rootMargin: "-30% 0px -65% 0px" });
 sections.forEach(([, id]) => io.observe($(id)));
 
-$("cform").addEventListener("submit", ev => {
+$("cform").addEventListener("submit", async ev => {
   ev.preventDefault();
-  const f = new FormData(ev.target);
-  const body = f.get("message") + "\n\n" + f.get("name") + "\n" + f.get("email");
-  location.href = "mailto:" + D.email + "?subject=" + encodeURIComponent("Portfolio message from " + f.get("name")) + "&body=" + encodeURIComponent(body);
-  $("status").textContent = "Thanks for reaching out! Your email app should open with your message ready to send. If it doesn’t, you can reach me through LinkedIn.";
+  const form = ev.target, btn = form.querySelector("button[type=submit]"), f = new FormData(form);
+  btn.disabled = true; btn.textContent = "Sending…";
+  $("status").textContent = "";
+  try {
+    const res = await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        access_key: "b3f63ac0-fa66-419b-9a1c-a0f8ef444c7f",
+        subject: "Portfolio message from " + f.get("name"),
+        from_name: "Portfolio contact form",
+        name: f.get("name"),
+        email: f.get("email"),
+        message: f.get("message"),
+        botcheck: f.get("botcheck") ? true : ""
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || "Request failed");
+    form.reset();
+    $("status").textContent = "Thanks for reaching out! Your message was sent and I’ll get back to you soon.";
+  } catch (e) {
+    $("status").textContent = "Sorry, something went wrong and your message wasn’t sent. Please try again, or reach me through LinkedIn.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Send";
+  }
 });
 {
   const mark = (sel, base = 0, step = .12, extra = "") => document.querySelectorAll(sel).forEach((el, i) => {
